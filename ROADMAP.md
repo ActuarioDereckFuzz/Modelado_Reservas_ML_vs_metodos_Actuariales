@@ -12,8 +12,8 @@ Comparar métodos tradicionales y estadísticos para proyectar el desarrollo men
 
 | Fase | Descripción | Estado |
 |---|---|---|
-| 00 | Roadmap y estado del proyecto | 🟢 En progreso |
-| 01 | Diseño y simulación | 🟡 En revisión |
+| 01 | Diseño y simulación | ✅ Completada |
+| 02 | Validación y estructura | 🟡 En progreso |
 | 02 | Exploración y construcción de triángulos | ⚪ Pendiente |
 | 03 | Métodos tradicionales de desarrollo | ⚪ Pendiente |
 | 04 | Modelación estadística | ⚪ Pendiente |

@@ -4,40 +4,68 @@
 
 ## Estado general
 
-🟡 **En desarrollo**
+🟢 **En desarrollo — Fase 01 completada**
 
 ## Fase actual
 
-**01 — Diseño y simulación**
-
-Se está revisando el diseño del proyecto antes de continuar con la implementación definitiva.
+**02 — Validación y estructura**
 
 ## Completado
 
-- Definición de tres escenarios: creciente, decreciente y mixto.
-- Primera versión de las bases simuladas.
-- Primera implementación de métodos de desarrollo.
-- GLM Gamma con enlace log.
-- Primera versión del backtesting.
-- Validación de claves comunes entre modelos.
+### Fase 01 — Diseño y simulación ✅
 
-## Problema identificado
+- Tres escenarios simulados:
+  - creciente;
+  - decreciente;
+  - mixto.
+- Período de simulación:
+  - `2015-01` a `2025-12`.
+- Horizonte de madurez:
+  - creciente: `dev_M = 60`;
+  - decreciente: `dev_M = 48`;
+  - mixto: `dev_M = 48`.
+- Tendencia, estacionalidad y ruido incorporados.
+- Reproducibilidad validada.
+- Importes positivos validados.
+- Calendarios y dimensiones validados.
+- Madurez validada:
+  - `LI_M = Ultimate`.
+- Notebook `01_diseno_simulacion.ipynb` ejecutado correctamente.
+- Módulo `src/simulation` validado.
+- `30 tests` ejecutados correctamente.
 
-El diseño inicial del backtesting excluye edades jóvenes debido a que el target debe estar completamente revelado antes de `2025-12`.
+## Decisiones vigentes
 
-Esto puede sesgar la evaluación de los modelos.
+- Mantener `dev_M = 60 / 48 / 48`.
+- No modificar la lógica de reproducibilidad incremental.
+- Trabajar con datos mensuales.
+- Mantener los tres patrones de desarrollo definidos.
 
-## Prioridad actual
+## Próxima fase
 
-Revisar:
+### 02 — Validación y estructura
 
-1. período de simulación;
-2. `dev_M` de cada escenario;
-3. definición del target;
-4. diseño temporal del backtesting.
+Objetivos principales:
 
-## Siguiente paso
+- validar estructura de las bases;
+- revisar períodos de ocurrencia y desarrollo;
+- analizar factores edad-a-edad observados;
+- comprobar que cada escenario reproduce el comportamiento esperado;
+- preparar las bases para la construcción de triángulos.
 
-Cerrar **Diseño y simulación** y posteriormente avanzar a:
+## Estado por fase
 
-**02 — Exploración y construcción de triángulos**.
+| Fase | Estado |
+|---|---|
+| 00 — Roadmap y estado | 🟢 En progreso |
+| 01 — Diseño y simulación | ✅ Completada |
+| 02 — Validación y estructura | 🟡 Siguiente |
+| 03 — Triángulos y métodos actuariales | ⚪ Pendiente |
+| 04 — Modelación estadística / ML | ⚪ Pendiente |
+| 05 — Backtesting | ⚪ Pendiente |
+| 06 — Comparación y resultados | ⚪ Pendiente |
+| 07 — Documentación final | ⚪ Pendiente |
+
+## Próximo objetivo
+
+Completar la validación estructural de los tres escenarios antes de avanzar a la construcción y comparación de métodos de desarrollo.
