@@ -14,11 +14,10 @@ Comparar métodos tradicionales y estadísticos para proyectar el desarrollo men
 |---|---|---|
 | 01 | Diseño y simulación | ✅ Completada |
 | 02 | Validación y exploración | ✅ Completada |
-| 03 | Triángulos y métodos actuariales | 🟡 En progreso |
-| 04 | Modelación estadística / ML | ⚪ Pendiente |
-| 05 | Backtesting | ⚪ Pendiente |
-| 06 | Comparación y resultados | ⚪ Pendiente |
-| 07 | Documentación final | ⚪ Pendiente |
+| 03 | Diseño del experimento | ✅ Completada |
+| 04 | Backtesting | 🟡 En progreso |
+| 05 | Evaluación y selección | ⚪ Pendiente |
+| 06 | Reserva y reporte final | ⚪ Pendiente |
 
 ## Flujo
 

@@ -4,60 +4,61 @@
 
 ## Estado general
 
-🟢 **En desarrollo — Fases 01 y 02 completadas**
+🟢 **En desarrollo — Fases 01, 02 y 03 completadas**
 
 ## Fase actual
 
-**03 — Triángulos y métodos actuariales**
+**04 — Backtesting | Requisitos 11–12**
 
 ## Completado
 
-### Fase 01 — Diseño y simulación ✅
+### 01 — Diseño y simulación ✅
 
-- Tres escenarios: creciente, decreciente y mixto.
-- Simulación mensual `2015-01` a `2025-12`.
+- Tres escenarios simulados:
+  - creciente;
+  - decreciente;
+  - mixto.
+- Periodicidad mensual.
 - `dev_M = 60 / 48 / 48`.
 - Tendencia, estacionalidad y ruido incorporados.
-- Positividad, dimensiones, calendario y madurez validados.
-- Reproducibilidad validada.
-- `LI_M = Ultimate`.
-- `src/simulation` validado.
-- `30 tests` superados.
-- Notebook `01_diseno_simulacion.ipynb` terminado.
+- Madurez, calendario, positividad y reproducibilidad validados.
+- Notebook y módulo de simulación terminados.
+- 30 tests superados.
 
-### Fase 02 — Validación y exploración ✅
+### 02 — Validación y exploración ✅
 
 - Estructura de las tres bases validada.
-- Períodos de ocurrencia y desarrollo revisados.
-- Triángulos acumulados e incrementales construidos y revisados.
+- Desarrollo observado revisado.
+- Factores edad-a-edad analizados.
+- Triángulos acumulados e incrementales construidos.
 - Diagonal más reciente obtenida.
-- Tendencia y estacionalidad analizadas.
-- Factores edad-a-edad calculados.
-- Tabla completa de factores incorporada.
-- Heatmap incremental revisado excluyendo `dev = 0`.
+- Tendencia y estacionalidad exploradas.
 - Comportamiento esperado de los tres escenarios corroborado.
-- Requisitos 4–7 verificados explícitamente.
-- Notebook `02_validacion_exploracion_final.ipynb` finalizado y preparado para ejecución reproducible.
+- Notebook de validación y exploración terminado.
 
-## Decisiones vigentes
+### 03 — Diseño del experimento ✅
 
-- Mantener `dev_M = 60 / 48 / 48`.
-- Mantener los tres escenarios originales.
-- No modificar la lógica de simulación de este experimento.
-- Trabajar con periodicidad mensual.
-- Mantener separación entre simulación, validación, modelación y backtesting.
+- Protocolo temporal de evaluación definido.
+- Fechas de valuación y elegibilidad formalizadas.
+- Separación entre información disponible y futura establecida.
+- Targets reales obtenidos en `dev_M`.
+- Snapshots de entrenamiento y evaluación construidos.
+- Validación de ausencia de leakage.
+- Módulo `src.experiment` organizado.
+- Notebook de diseño experimental terminado.
+- 18 tests superados.
 
 ## Próxima fase
 
-### 03 — Triángulos y métodos actuariales
+### 04 — Backtesting | Requisitos 11–12
 
 Objetivos principales:
 
-- definir formalmente los métodos tradicionales de desarrollo;
-- implementar alternativas de factores;
-- proyectar valores futuros;
-- estandarizar predicciones;
-- preparar benchmarks para compararlos posteriormente con los modelos estadísticos.
+- ejecutar el backtesting histórico;
+- entrenar los métodos únicamente con información disponible en cada valuación;
+- generar predicciones comparables;
+- revelar los targets únicamente cuando corresponda;
+- almacenar resultados de forma estandarizada para todos los modelos.
 
 ## Estado por fase
 
@@ -66,12 +67,11 @@ Objetivos principales:
 | 00 — Roadmap y estado | 🟢 Continuo |
 | 01 — Diseño y simulación | ✅ Completada |
 | 02 — Validación y exploración | ✅ Completada |
-| 03 — Triángulos y métodos actuariales | 🟡 Siguiente |
-| 04 — Modelación estadística / ML | ⚪ Pendiente |
-| 05 — Backtesting | ⚪ Pendiente |
-| 06 — Comparación y resultados | ⚪ Pendiente |
-| 07 — Documentación final | ⚪ Pendiente |
+| 03 — Diseño del experimento | ✅ Completada |
+| 04 — Backtesting | 🟡 Siguiente |
+| 05 — Evaluación y selección | ⚪ Pendiente |
+| 06 — Reserva y reporte final | ⚪ Pendiente |
 
 ## Próximo objetivo
 
-Construir los métodos actuariales de referencia que funcionarán como benchmark para los modelos estadísticos y de ML.
+Implementar el backtesting completo sobre los tres escenarios siguiendo el protocolo temporal definido en la Fase 03.
