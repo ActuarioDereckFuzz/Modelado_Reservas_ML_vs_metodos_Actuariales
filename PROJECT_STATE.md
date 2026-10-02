@@ -1,64 +1,65 @@
 # Project State — Loss Incurred
 
-**Última actualización:** 2026-10-01
+**Última actualización:** 2026-10-02
 
 ## Estado general
 
-🟢 **En desarrollo — Fases 01, 02 y 03 completadas**
+🟢 **En desarrollo — Backtesting completado**
 
 ## Fase actual
 
-**04 — Backtesting | Requisitos 11–12**
+**05 — Evaluación y comparación de modelos**
 
 ## Completado
 
 ### 01 — Diseño y simulación ✅
-
-- Tres escenarios simulados:
-  - creciente;
-  - decreciente;
-  - mixto.
-- Periodicidad mensual.
+- Escenarios creciente, decreciente y mixto.
+- Simulación mensual reproducible.
 - `dev_M = 60 / 48 / 48`.
-- Tendencia, estacionalidad y ruido incorporados.
-- Madurez, calendario, positividad y reproducibilidad validados.
-- Notebook y módulo de simulación terminados.
-- 30 tests superados.
+- Tendencia, estacionalidad, ruido y madurez validados.
 
 ### 02 — Validación y exploración ✅
-
-- Estructura de las tres bases validada.
-- Desarrollo observado revisado.
-- Factores edad-a-edad analizados.
-- Triángulos acumulados e incrementales construidos.
-- Diagonal más reciente obtenida.
-- Tendencia y estacionalidad exploradas.
-- Comportamiento esperado de los tres escenarios corroborado.
-- Notebook de validación y exploración terminado.
+- Bases validadas.
+- Triángulos acumulados e incrementales.
+- Diagonal más reciente.
+- Factores edad-a-edad.
+- Tendencia y estacionalidad.
+- Patrones esperados corroborados.
 
 ### 03 — Diseño del experimento ✅
+- Protocolo temporal definido.
+- Snapshots históricos.
+- Separación training / prediction / target.
+- Controles de leakage.
+- Elegibilidad y revelación del target separadas.
+- Tests unitarios e integración superados.
 
-- Protocolo temporal de evaluación definido.
-- Fechas de valuación y elegibilidad formalizadas.
-- Separación entre información disponible y futura establecida.
-- Targets reales obtenidos en `dev_M`.
-- Snapshots de entrenamiento y evaluación construidos.
-- Validación de ausencia de leakage.
-- Módulo `src.experiment` organizado.
-- Notebook de diseño experimental terminado.
-- 18 tests superados.
+### 04 — Backtesting ✅
+- Infraestructura de backtesting corregida y validada.
+- Cohortes jóvenes incorporadas al esquema de predicción.
+- Métodos de desarrollo ejecutados.
+- GLM integrado al backtesting.
+- Random Forest integrado.
+- XGBoost integrado.
+- Mismo target y monto utilizados para mantener comparabilidad.
+- Predicciones y resultados estandarizados.
+- Tests asociados superados.
+- Notebook `04_backtesting.ipynb` ejecutado.
+- Resultados revisados y comentarios finales incorporados.
 
 ## Próxima fase
 
-### 04 — Backtesting | Requisitos 11–12
+### 05 — Evaluación y comparación
 
-Objetivos principales:
+Objetivos:
 
-- ejecutar el backtesting histórico;
-- entrenar los métodos únicamente con información disponible en cada valuación;
-- generar predicciones comparables;
-- revelar los targets únicamente cuando corresponda;
-- almacenar resultados de forma estandarizada para todos los modelos.
+- consolidar resultados de todos los modelos;
+- definir métricas principales;
+- comparar por escenario;
+- comparar por edad de desarrollo;
+- analizar bias y estabilidad;
+- identificar fortalezas y limitaciones de cada enfoque;
+- preparar la selección y las conclusiones del proyecto.
 
 ## Estado por fase
 
@@ -68,10 +69,10 @@ Objetivos principales:
 | 01 — Diseño y simulación | ✅ Completada |
 | 02 — Validación y exploración | ✅ Completada |
 | 03 — Diseño del experimento | ✅ Completada |
-| 04 — Backtesting | 🟡 Siguiente |
-| 05 — Evaluación y selección | ⚪ Pendiente |
+| 04 — Backtesting | ✅ Completada |
+| 05 — Evaluación y comparación | 🟡 Siguiente |
 | 06 — Reserva y reporte final | ⚪ Pendiente |
 
 ## Próximo objetivo
 
-Implementar el backtesting completo sobre los tres escenarios siguiendo el protocolo temporal definido en la Fase 03.
+Construir la comparación global de métodos a partir de los resultados generados en el backtesting.
