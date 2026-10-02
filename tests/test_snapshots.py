@@ -1,24 +1,37 @@
 import pandas as pd
 
 from src.experiment import (
+    build_prediction_snapshots,
     build_target_table,
-    build_test_snapshots,
     build_training_snapshots,
+    reveal_targets,
 )
 
+
+# ============================================================
+# BASE TOY
+# ============================================================
 
 def make_toy_creciente():
     """
     Base mínima con la misma estructura relevante
     que las simulaciones reales.
 
-    Se utiliza un ultimate_loss deliberadamente absurdo
+    Incluye:
+
+    - dos cohortes maduras en 2021-06;
+    - una cohorte inmadura con edad 6;
+    - una cohorte inmadura con edad 0 cuyo target ocurre
+      después de 2025-12.
+
+    Se utiliza un `ultimate_loss` deliberadamente absurdo
     para comprobar que snapshots.py NO lo utiliza.
     """
     accident_periods = [
         pd.Period("2015-01", freq="M"),
         pd.Period("2016-01", freq="M"),
         pd.Period("2020-12", freq="M"),
+        pd.Period("2021-06", freq="M"),
     ]
 
     rows = []
@@ -51,6 +64,10 @@ def make_toy_creciente():
     return pd.DataFrame(rows)
 
 
+# ============================================================
+# TARGET
+# ============================================================
+
 def test_target_comes_from_mature_loss_incurred():
 
     df = make_toy_creciente()
@@ -67,9 +84,13 @@ def test_target_comes_from_mature_loss_incurred():
 
     expected = (
         df.loc[
-            (df["accident_period"]
-             == pd.Period("2015-01", freq="M"))
-            & (df["dev_month"] == 60),
+            (
+                df["accident_period"]
+                == pd.Period("2015-01", freq="M")
+            )
+            & (
+                df["dev_month"] == 60
+            ),
             "loss_incurred",
         ]
         .iloc[0]
@@ -81,6 +102,10 @@ def test_target_comes_from_mature_loss_incurred():
     assert first["target_amount"] != 999_999_999
 
 
+# ============================================================
+# TRAINING
+# ============================================================
+
 def test_training_uses_only_mature_cohorts():
 
     df = make_toy_creciente()
@@ -91,9 +116,9 @@ def test_training_uses_only_mature_cohorts():
         valuation_period="2021-06",
     )
 
-    # 2015-01 madura en 2020-01
-    # 2016-01 madura en 2021-01
-    # 2020-12 todavía no madura.
+    # 2015-01 madura en 2020-01.
+    # 2016-01 madura en 2021-01.
+    # 2020-12 y 2021-06 todavía son inmaduras.
     expected_accident_periods = {
         pd.Period("2015-01", freq="M"),
         pd.Period("2016-01", freq="M"),
@@ -154,20 +179,44 @@ def test_training_never_contains_dev_M():
     ).all()
 
 
-def test_test_snapshot_uses_current_valuation_age():
+def test_training_contains_known_target():
 
     df = make_toy_creciente()
 
-    test = build_test_snapshots(
+    train = build_training_snapshots(
         df=df,
         scenario="creciente",
         valuation_period="2021-06",
-        final_period="2025-12",
+    )
+
+    assert "target_amount" in train.columns
+
+    assert train[
+        "target_amount"
+    ].notna().all()
+
+    assert train[
+        "target_amount"
+    ].gt(0).all()
+
+
+# ============================================================
+# PREDICTION SNAPSHOTS
+# ============================================================
+
+def test_prediction_snapshot_uses_current_valuation_age():
+
+    df = make_toy_creciente()
+
+    prediction = build_prediction_snapshots(
+        df=df,
+        scenario="creciente",
+        valuation_period="2021-06",
     )
 
     # 2020-12 tiene 6 meses de desarrollo en 2021-06.
-    row = test.loc[
-        test["accident_period"]
+    row = prediction.loc[
+        prediction["accident_period"]
         == pd.Period("2020-12", freq="M")
     ].iloc[0]
 
@@ -179,47 +228,113 @@ def test_test_snapshot_uses_current_valuation_age():
     )
 
 
-def test_test_contains_only_immature_but_evaluable_cohorts():
+def test_prediction_includes_age_zero():
 
     df = make_toy_creciente()
 
-    test = build_test_snapshots(
+    prediction = build_prediction_snapshots(
         df=df,
         scenario="creciente",
         valuation_period="2021-06",
-        final_period="2025-12",
+    )
+
+    # La cohorte 2021-06 acaba de ocurrir.
+    row = prediction.loc[
+        prediction["accident_period"]
+        == pd.Period("2021-06", freq="M")
+    ].iloc[0]
+
+    assert row["snapshot_dev_month"] == 0
+
+    assert (
+        row["snapshot_period"]
+        == pd.Period("2021-06", freq="M")
+    )
+
+
+def test_prediction_contains_only_immature_cohorts():
+
+    df = make_toy_creciente()
+
+    prediction = build_prediction_snapshots(
+        df=df,
+        scenario="creciente",
+        valuation_period="2021-06",
     )
 
     assert (
-        test["target_period"]
+        prediction["target_period"]
         > pd.Period("2021-06", freq="M")
     ).all()
 
     assert (
-        test["target_period"]
-        <= pd.Period("2025-12", freq="M")
+        prediction["snapshot_dev_month"] >= 0
     ).all()
 
     assert (
-        test["snapshot_dev_month"]
-        < test["dev_M"]
+        prediction["snapshot_dev_month"]
+        < prediction["dev_M"]
     ).all()
 
 
-def test_test_has_one_row_per_accident_period():
+def test_prediction_can_include_target_after_final_period():
 
     df = make_toy_creciente()
 
-    test = build_test_snapshots(
+    prediction = build_prediction_snapshots(
         df=df,
         scenario="creciente",
         valuation_period="2021-06",
         final_period="2025-12",
     )
 
-    assert not test[
+    # 2021-06 + 60 meses = 2026-06.
+    row = prediction.loc[
+        prediction["accident_period"]
+        == pd.Period("2021-06", freq="M")
+    ].iloc[0]
+
+    assert (
+        row["target_period"]
+        == pd.Period("2026-06", freq="M")
+    )
+
+    assert (
+        row["target_period"]
+        > pd.Period("2025-12", freq="M")
+    )
+
+
+def test_prediction_has_one_row_per_accident_period():
+
+    df = make_toy_creciente()
+
+    prediction = build_prediction_snapshots(
+        df=df,
+        scenario="creciente",
+        valuation_period="2021-06",
+    )
+
+    assert not prediction[
         "accident_period"
     ].duplicated().any()
+
+
+# ============================================================
+# ANTI-LEAKAGE
+# ============================================================
+
+def test_prediction_does_not_contain_target_amount():
+
+    df = make_toy_creciente()
+
+    prediction = build_prediction_snapshots(
+        df=df,
+        scenario="creciente",
+        valuation_period="2021-06",
+    )
+
+    assert "target_amount" not in prediction.columns
 
 
 def test_max_feature_dev_month_never_exceeds_snapshot():
@@ -232,11 +347,10 @@ def test_max_feature_dev_month_never_exceeds_snapshot():
         valuation_period="2021-06",
     )
 
-    test = build_test_snapshots(
+    prediction = build_prediction_snapshots(
         df=df,
         scenario="creciente",
         valuation_period="2021-06",
-        final_period="2025-12",
     )
 
     assert (
@@ -245,6 +359,83 @@ def test_max_feature_dev_month_never_exceeds_snapshot():
     ).all()
 
     assert (
-        test["max_feature_dev_month"]
-        <= test["snapshot_dev_month"]
+        prediction["max_feature_dev_month"]
+        <= prediction["snapshot_dev_month"]
+    ).all()
+
+
+# ============================================================
+# REVELACIÓN DEL TARGET
+# ============================================================
+
+def test_reveal_targets_adds_target_only_after_prediction():
+
+    df = make_toy_creciente()
+
+    prediction = build_prediction_snapshots(
+        df=df,
+        scenario="creciente",
+        valuation_period="2021-06",
+    )
+
+    assert "target_amount" not in prediction.columns
+
+    revealed = reveal_targets(
+        predictions=prediction,
+        df=df,
+        scenario="creciente",
+    )
+
+    assert "target_amount" in revealed.columns
+
+    assert revealed[
+        "target_amount"
+    ].notna().all()
+
+    assert revealed[
+        "target_amount"
+    ].gt(0).all()
+
+
+def test_revealed_target_matches_loss_incurred_at_dev_M():
+
+    df = make_toy_creciente()
+
+    prediction = build_prediction_snapshots(
+        df=df,
+        scenario="creciente",
+        valuation_period="2021-06",
+    )
+
+    revealed = reveal_targets(
+        predictions=prediction,
+        df=df,
+        scenario="creciente",
+    )
+
+    expected = (
+        df.loc[
+            df["dev_month"].eq(60),
+            [
+                "accident_period",
+                "loss_incurred",
+            ],
+        ]
+        .rename(
+            columns={
+                "loss_incurred": "expected_target"
+            }
+        )
+    )
+
+    check = revealed.merge(
+        expected,
+        on="accident_period",
+        how="left",
+        validate="many_to_one",
+    )
+
+    assert (
+        check["target_amount"]
+        == check["expected_target"]
     ).all()

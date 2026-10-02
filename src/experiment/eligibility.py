@@ -85,7 +85,7 @@ def build_eligibility_grid(
     final_period: pd.Period = FINAL_PERIOD,
 ) -> pd.DataFrame:
     """
-    Construye la cuadrícula de elegibilidad del backtesting.
+    Construye la cuadrícula temporal de elegibilidad.
 
     Una fila representa una combinación:
 
@@ -93,8 +93,32 @@ def build_eligibility_grid(
         + accident_period
         + valuation_period
 
-    y determina la edad observable y la disponibilidad
-    temporal del target.
+    Para cada combinación se determina:
+
+    - la edad observable en la valuación;
+    - si la cohorte ya existía;
+    - si ya había alcanzado dev_M;
+    - si su target habría sido revelado antes de FINAL_PERIOD;
+    - si constituye una observación candidata a predicción.
+
+    Importante
+    ----------
+    `is_target_revealed_by_end` es únicamente una variable
+    diagnóstica.
+
+    No interviene en la selección de observaciones para
+    backtesting.
+
+    Una observación puede predecirse siempre que:
+
+        0 <= latest_dev_month < dev_M
+
+    independientemente de que su target ocurra después de
+    FINAL_PERIOD.
+
+    La disponibilidad real del target se verificará
+    posteriormente contra la trayectoria completa simulada,
+    durante la fase de revelación.
     """
     if scenario not in DEV_M:
         raise ValueError(
@@ -102,7 +126,10 @@ def build_eligibility_grid(
         )
 
     dev_m = DEV_M[scenario]
-    final_period = as_month_period(final_period)
+
+    final_period = as_month_period(
+        final_period
+    )
 
     accident_periods = [
         as_month_period(p)
@@ -130,22 +157,33 @@ def build_eligibility_grid(
                 dev_m,
             )
 
+            # La cohorte ya existe en la fecha de valuación.
             is_observed_at_valuation = (
                 latest_dev_month >= 0
             )
 
+            # La cohorte ya alcanzó dev_M.
             is_mature_at_valuation = (
                 target_period <= valuation_period
             )
 
+            # Diagnóstico únicamente.
+            # NO determina si una observación puede predecirse.
             is_target_revealed_by_end = (
                 target_period <= final_period
             )
 
-            is_backtest_evaluable = (
+            # Universo que realmente queremos predecir:
+            # cohortes existentes pero todavía inmaduras.
+            is_prediction_candidate = (
                 is_observed_at_valuation
-                and latest_dev_month < dev_m
-                and is_target_revealed_by_end
+                and not is_mature_at_valuation
+            )
+
+            # Alias temporal para mantener compatibilidad
+            # con el resto del proyecto.
+            is_backtest_evaluable = (
+                is_prediction_candidate
             )
 
             rows.append(
@@ -165,6 +203,9 @@ def build_eligibility_grid(
                     "is_target_revealed_by_end": (
                         is_target_revealed_by_end
                     ),
+                    "is_prediction_candidate": (
+                        is_prediction_candidate
+                    ),
                     "is_backtest_evaluable": (
                         is_backtest_evaluable
                     ),
@@ -178,15 +219,20 @@ def get_backtest_rows(
     eligibility: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Devuelve únicamente las observaciones evaluables.
+    Devuelve las observaciones candidatas a predicción
+    histórica.
+
+    Una observación es candidata cuando la cohorte ya existe
+    en la valuación pero todavía no ha alcanzado dev_M.
     """
     return (
         eligibility
-        .loc[eligibility["is_backtest_evaluable"]]
+        .loc[
+            eligibility["is_prediction_candidate"]
+        ]
         .copy()
         .reset_index(drop=True)
     )
-
 
 def get_mature_cohorts(
     accident_periods: Iterable,

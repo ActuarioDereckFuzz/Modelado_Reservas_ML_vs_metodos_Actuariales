@@ -26,13 +26,15 @@ from .validation import (
     validate_feature_timing,
     validate_no_prediction_duplicates,
     validate_prediction_keys_equal,
-    validate_test_set,
+    validate_prediction_set,
+    validate_revealed_test_set,
     validate_training_set,
 )
 
 from .snapshots import (
+    build_prediction_snapshots,
     build_target_table,
-    build_test_snapshots,
-    build_train_test_snapshots,
+    build_train_prediction_snapshots,
     build_training_snapshots,
+    reveal_targets,
 )

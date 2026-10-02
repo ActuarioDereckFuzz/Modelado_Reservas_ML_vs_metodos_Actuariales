@@ -2,12 +2,14 @@ import pandas as pd
 import pytest
 
 from src.experiment import (
+    BACKTEST_END,
     BACKTEST_START,
     DEV_M,
     FINAL_PERIOD,
+    build_prediction_snapshots,
     build_target_table,
-    build_test_snapshots,
     build_training_snapshots,
+    reveal_targets,
 )
 
 
@@ -17,6 +19,10 @@ SCENARIOS = [
     "mixto",
 ]
 
+
+# ============================================================
+# TARGET REAL = LOSS INCURRED EN dev_M
+# ============================================================
 
 @pytest.mark.parametrize(
     "scenario",
@@ -70,6 +76,10 @@ def test_real_targets_match_loss_incurred_at_dev_m(
     ).all()
 
 
+# ============================================================
+# COBERTURA COMPLETA DE EDADES
+# ============================================================
+
 @pytest.mark.parametrize(
     "scenario",
     SCENARIOS,
@@ -80,30 +90,46 @@ def test_first_backtest_valuation_contains_all_ages(
 ):
     """
     En la primera valuación deben aparecer todas las edades
-    0,...,dev_M-1 entre las observaciones evaluables.
+    0,...,dev_M-1 entre las observaciones candidatas a
+    predicción.
 
     Esta prueba protege directamente la corrección realizada
     al diseño original.
     """
     df = simulations_base[scenario]
 
-    test = build_test_snapshots(
+    prediction = build_prediction_snapshots(
         df=df,
         scenario=scenario,
         valuation_period=BACKTEST_START,
-        final_period=FINAL_PERIOD,
     )
 
     dev_m = DEV_M[scenario]
 
     observed_ages = set(
-        test["snapshot_dev_month"].unique()
+        prediction[
+            "snapshot_dev_month"
+        ].unique()
     )
 
     assert observed_ages == set(
         range(dev_m)
     )
 
+    assert (
+        prediction["snapshot_dev_month"].min()
+        == 0
+    )
+
+    assert (
+        prediction["snapshot_dev_month"].max()
+        == dev_m - 1
+    )
+
+
+# ============================================================
+# HISTORIA MÍNIMA PARA ML
+# ============================================================
 
 def test_creciente_has_12_mature_cohorts_at_ml_start(
     simulations_base,
@@ -171,6 +197,10 @@ def test_48m_scenarios_already_have_enough_history_at_start(
     assert len(train) == 13 * 48
 
 
+# ============================================================
+# TRAINING SIN INFORMACIÓN FUTURA
+# ============================================================
+
 @pytest.mark.parametrize(
     "scenario,valuation_period",
     [
@@ -184,6 +214,10 @@ def test_real_train_has_no_future_targets(
     scenario,
     valuation_period,
 ):
+    """
+    Los targets utilizados para entrenamiento deben haber sido
+    conocidos en la fecha histórica de valuación.
+    """
     train = build_training_snapshots(
         df=simulations_base[scenario],
         scenario=scenario,
@@ -210,6 +244,16 @@ def test_real_train_has_no_future_targets(
         <= train["snapshot_dev_month"]
     ).all()
 
+    assert "target_amount" in train.columns
+
+    assert train[
+        "target_amount"
+    ].notna().all()
+
+
+# ============================================================
+# PREDICTION SNAPSHOTS TEMPORALMENTE VÁLIDOS
+# ============================================================
 
 @pytest.mark.parametrize(
     "scenario,valuation_period",
@@ -222,16 +266,22 @@ def test_real_train_has_no_future_targets(
         ("mixto", "2022-06"),
     ],
 )
-def test_real_test_snapshots_are_temporally_valid(
+def test_real_prediction_snapshots_are_temporally_valid(
     simulations_base,
     scenario,
     valuation_period,
 ):
-    test = build_test_snapshots(
+    """
+    Cada snapshot de predicción debe representar exactamente
+    la información observable en la valuación histórica.
+
+    El target debe permanecer futuro y `target_amount`
+    físicamente ausente.
+    """
+    prediction = build_prediction_snapshots(
         df=simulations_base[scenario],
         scenario=scenario,
         valuation_period=valuation_period,
-        final_period=FINAL_PERIOD,
     )
 
     valuation_period = pd.Period(
@@ -239,28 +289,160 @@ def test_real_test_snapshots_are_temporally_valid(
         freq="M",
     )
 
-    assert not test.empty
+    assert not prediction.empty
 
     assert (
-        test["snapshot_period"]
+        prediction["snapshot_period"]
         == valuation_period
     ).all()
 
     assert (
-        test["target_period"]
+        prediction["target_period"]
         > valuation_period
     ).all()
 
     assert (
-        test["target_period"]
-        <= FINAL_PERIOD
+        prediction["snapshot_dev_month"]
+        >= 0
     ).all()
 
     assert (
-        test["snapshot_dev_month"]
-        < test["dev_M"]
+        prediction["snapshot_dev_month"]
+        < prediction["dev_M"]
     ).all()
 
-    assert not test[
+    assert (
+        prediction["max_feature_dev_month"]
+        <= prediction["snapshot_dev_month"]
+    ).all()
+
+    assert not prediction[
         "accident_period"
     ].duplicated().any()
+
+    # Regla central anti-leakage.
+    assert "target_amount" not in prediction.columns
+
+
+# ============================================================
+# FINAL_PERIOD YA NO LIMITA EL BACKTEST
+# ============================================================
+
+@pytest.mark.parametrize(
+    "scenario",
+    SCENARIOS,
+)
+def test_real_predictions_can_have_targets_after_final_period(
+    simulations_base,
+    scenario,
+):
+    """
+    En la última valuación del backtesting deben existir
+    cohortes legítimas cuyo target ocurra después de
+    FINAL_PERIOD.
+
+    Estas observaciones deben permanecer dentro del universo
+    de predicción.
+    """
+    prediction = build_prediction_snapshots(
+        df=simulations_base[scenario],
+        scenario=scenario,
+        valuation_period=BACKTEST_END,
+        final_period=FINAL_PERIOD,
+    )
+
+    assert not prediction.empty
+
+    after_final = prediction.loc[
+        prediction["target_period"]
+        > FINAL_PERIOD
+    ]
+
+    assert not after_final.empty
+
+    # La edad 0 debe estar presente en BACKTEST_END.
+    age_zero = prediction.loc[
+        prediction[
+            "snapshot_dev_month"
+        ].eq(0)
+    ]
+
+    assert not age_zero.empty
+
+    assert (
+        age_zero["target_period"]
+        > FINAL_PERIOD
+    ).all()
+
+
+# ============================================================
+# REVELACIÓN POSTERIOR
+# ============================================================
+
+@pytest.mark.parametrize(
+    "scenario",
+    SCENARIOS,
+)
+def test_real_reveal_targets_matches_mature_loss_incurred(
+    simulations_base,
+    scenario,
+):
+    """
+    Después de construir el snapshot de predicción sin target,
+    reveal_targets() debe recuperar exactamente el
+    loss_incurred observado en dev_M.
+    """
+    df = simulations_base[scenario]
+
+    prediction = build_prediction_snapshots(
+        df=df,
+        scenario=scenario,
+        valuation_period="2022-06",
+    )
+
+    # El target todavía debe estar bloqueado.
+    assert "target_amount" not in prediction.columns
+
+    revealed = reveal_targets(
+        predictions=prediction,
+        df=df,
+        scenario=scenario,
+    )
+
+    assert "target_amount" in revealed.columns
+
+    targets = build_target_table(
+        df=df,
+        scenario=scenario,
+    )[
+        [
+            "accident_period",
+            "target_amount",
+        ]
+    ].rename(
+        columns={
+            "target_amount": "expected_target",
+        }
+    )
+
+    check = revealed.merge(
+        targets,
+        on="accident_period",
+        how="left",
+        validate="many_to_one",
+    )
+
+    assert check[
+        "expected_target"
+    ].notna().all()
+
+    assert (
+        check["target_amount"]
+        == check["expected_target"]
+    ).all()
+
+    # La predicción siempre ocurrió antes de la revelación.
+    assert (
+        check["target_period"]
+        > check["valuation_period"]
+    ).all()

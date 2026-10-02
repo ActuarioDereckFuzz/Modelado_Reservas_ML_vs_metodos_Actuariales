@@ -8,7 +8,8 @@ from .eligibility import (
     build_eligibility_grid,
 )
 from .validation import (
-    validate_test_set,
+    validate_prediction_set,
+    validate_revealed_test_set,
     validate_training_set,
 )
 
@@ -27,7 +28,24 @@ REQUIRED_SOURCE_COLUMNS = {
 }
 
 
-SNAPSHOT_COLUMNS = [
+# ============================================================
+# COLUMNAS DE SNAPSHOTS
+# ============================================================
+
+COMMON_SNAPSHOT_COLUMNS = [
+    "scenario",
+    "accident_period",
+    "snapshot_period",
+    "model_valuation_period",
+    "snapshot_dev_month",
+    "dev_M",
+    "observed_amount",
+    "target_period",
+    "max_feature_dev_month",
+]
+
+
+TRAINING_SNAPSHOT_COLUMNS = [
     "scenario",
     "accident_period",
     "snapshot_period",
@@ -39,6 +57,11 @@ SNAPSHOT_COLUMNS = [
     "target_amount",
     "max_feature_dev_month",
 ]
+
+
+PREDICTION_SNAPSHOT_COLUMNS = (
+    COMMON_SNAPSHOT_COLUMNS.copy()
+)
 
 
 # ============================================================
@@ -64,7 +87,9 @@ def _prepare_scenario_frame(
             f"Opciones válidas: {list(DEV_M)}"
         )
 
-    missing = REQUIRED_SOURCE_COLUMNS.difference(df.columns)
+    missing = REQUIRED_SOURCE_COLUMNS.difference(
+        df.columns
+    )
 
     if missing:
         raise ValueError(
@@ -73,13 +98,16 @@ def _prepare_scenario_frame(
         )
 
     data = (
-        df.loc[df["scenario"] == scenario]
+        df.loc[
+            df["scenario"].eq(scenario)
+        ]
         .copy()
     )
 
     if data.empty:
         raise ValueError(
-            f"No existen observaciones para {scenario!r}."
+            f"No existen observaciones para "
+            f"{scenario!r}."
         )
 
     # --------------------------------------------------------
@@ -108,10 +136,13 @@ def _prepare_scenario_frame(
 
     expected_dev_m = DEV_M[scenario]
 
-    if not data["dev_M"].eq(expected_dev_m).all():
+    if not data["dev_M"].eq(
+        expected_dev_m
+    ).all():
         raise ValueError(
-            f"`dev_M` no coincide con la configuración "
-            f"del escenario {scenario!r}: "
+            "`dev_M` no coincide con la "
+            "configuración del escenario "
+            f"{scenario!r}: "
             f"se esperaba {expected_dev_m}."
         )
 
@@ -137,7 +168,8 @@ def _prepare_scenario_frame(
 
     if not data["loss_incurred"].gt(0).all():
         raise ValueError(
-            "`loss_incurred` debe ser estrictamente positivo."
+            "`loss_incurred` debe ser "
+            "estrictamente positivo."
         )
 
     # --------------------------------------------------------
@@ -179,7 +211,7 @@ def _prepare_scenario_frame(
 
 
 # ============================================================
-# TARGETS MADUROS
+# TARGETS A MADUREZ
 # ============================================================
 
 def build_target_table(
@@ -193,10 +225,12 @@ def build_target_table(
 
     Se obtiene directamente como:
 
-        target_amount = loss_incurred en dev_month == dev_M
+        target_amount =
+            loss_incurred en dev_month == dev_M
 
-    reproduciendo así la información que estaría disponible
-    en una base real una vez alcanzada la madurez.
+    reproduciendo así la información que estaría
+    disponible en una base real una vez alcanzada
+    la madurez.
     """
     data = _prepare_scenario_frame(
         df=df,
@@ -227,17 +261,22 @@ def build_target_table(
 
     if targets.empty:
         raise ValueError(
-            f"No existen observaciones en dev_M={dev_m} "
-            f"para el escenario {scenario!r}."
+            "No existen observaciones en "
+            f"dev_M={dev_m} para el escenario "
+            f"{scenario!r}."
         )
 
-    if targets["accident_period"].duplicated().any():
+    if targets[
+        "accident_period"
+    ].duplicated().any():
         raise ValueError(
-            "Cada accident_period debe tener exactamente "
-            "un target a madurez."
+            "Cada accident_period debe tener "
+            "exactamente un target a madurez."
         )
 
-    if not targets["target_amount"].gt(0).all():
+    if not targets[
+        "target_amount"
+    ].gt(0).all():
         raise ValueError(
             "Todos los targets deben ser positivos."
         )
@@ -259,10 +298,11 @@ def build_training_snapshots(
     valuation_period,
 ) -> pd.DataFrame:
     """
-    Construye los snapshots disponibles para entrenamiento
-    en una valuación histórica.
+    Construye los snapshots disponibles para
+    entrenamiento en una valuación histórica.
 
-    Solamente utiliza cohortes cuyo target ya era conocido:
+    Solamente utiliza cohortes cuyo target ya era
+    conocido:
 
         target_period <= valuation_period
 
@@ -270,8 +310,12 @@ def build_training_snapshots(
 
         d = 0, ..., dev_M - 1
 
-    El snapshot en dev_M se excluye porque en ese punto
-    `loss_incurred` coincide con el target.
+    El snapshot en dev_M se excluye porque en ese
+    punto `loss_incurred` coincide con el target.
+
+    El target sí puede estar presente en entrenamiento,
+    pues pertenece únicamente a cohortes que ya habían
+    alcanzado madurez en la valuación histórica.
     """
     valuation_period = as_month_period(
         valuation_period
@@ -289,6 +333,10 @@ def build_training_snapshots(
 
     dev_m = DEV_M[scenario]
 
+    # --------------------------------------------------------
+    # Targets conocidos en la valuación
+    # --------------------------------------------------------
+
     mature_targets = (
         targets.loc[
             targets["target_period"]
@@ -299,12 +347,16 @@ def build_training_snapshots(
 
     if mature_targets.empty:
         return pd.DataFrame(
-            columns=SNAPSHOT_COLUMNS
+            columns=TRAINING_SNAPSHOT_COLUMNS
         )
 
     mature_accident_periods = set(
         mature_targets["accident_period"]
     )
+
+    # --------------------------------------------------------
+    # Snapshots históricos de cohortes maduras
+    # --------------------------------------------------------
 
     snapshots = (
         data.loc[
@@ -326,13 +378,23 @@ def build_training_snapshots(
         ]
         .rename(
             columns={
-                "calendar_period": "snapshot_period",
-                "dev_month": "snapshot_dev_month",
-                "loss_incurred": "observed_amount",
+                "calendar_period": (
+                    "snapshot_period"
+                ),
+                "dev_month": (
+                    "snapshot_dev_month"
+                ),
+                "loss_incurred": (
+                    "observed_amount"
+                ),
             }
         )
         .copy()
     )
+
+    # --------------------------------------------------------
+    # Incorporación del target conocido
+    # --------------------------------------------------------
 
     snapshots = snapshots.merge(
         mature_targets[
@@ -347,18 +409,20 @@ def build_training_snapshots(
         validate="many_to_one",
     )
 
-    snapshots["model_valuation_period"] = (
-        valuation_period
-    )
+    snapshots[
+        "model_valuation_period"
+    ] = valuation_period
 
-    # En esta etapa ninguna feature puede utilizar
-    # información posterior al propio snapshot.
-    snapshots["max_feature_dev_month"] = (
-        snapshots["snapshot_dev_month"]
-    )
+    # Ninguna feature podrá utilizar información posterior
+    # al propio snapshot.
+    snapshots[
+        "max_feature_dev_month"
+    ] = snapshots[
+        "snapshot_dev_month"
+    ]
 
     snapshots = snapshots[
-        SNAPSHOT_COLUMNS
+        TRAINING_SNAPSHOT_COLUMNS
     ]
 
     snapshots = (
@@ -372,22 +436,25 @@ def build_training_snapshots(
         .reset_index(drop=True)
     )
 
+    # --------------------------------------------------------
+    # Validaciones
+    # --------------------------------------------------------
+
     validate_training_set(
         train=snapshots,
         valuation_period=valuation_period,
     )
 
-    # Toda la información representada por el snapshot
-    # debe haber ocurrido antes del momento en que el
-    # target se conoció.
+    # La información representada por el snapshot debe
+    # corresponder a una edad anterior a dev_M.
     assert (
         snapshots["snapshot_period"]
         < snapshots["target_period"]
     ).all()
 
-    # Y, como la cohorte ya está madura en la valuación,
-    # todos estos snapshots deben ser históricos respecto
-    # del momento de ajuste.
+    # Como las cohortes utilizadas para entrenamiento ya
+    # estaban maduras, todos sus snapshots históricos
+    # ocurrieron como máximo en la fecha de valuación.
     assert (
         snapshots["snapshot_period"]
         <= valuation_period
@@ -397,29 +464,46 @@ def build_training_snapshots(
 
 
 # ============================================================
-# SNAPSHOTS DE TEST / BACKTEST
+# SNAPSHOTS DE PREDICCIÓN / BACKTEST
 # ============================================================
 
-def build_test_snapshots(
+def build_prediction_snapshots(
     df: pd.DataFrame,
     scenario: str,
     valuation_period,
     final_period=FINAL_PERIOD,
 ) -> pd.DataFrame:
     """
-    Construye las observaciones de backtesting existentes
-    en una valuación histórica.
+    Construye las observaciones disponibles para
+    predicción en una valuación histórica.
 
-    Cada accident_period aparece una sola vez y utiliza la
-    edad que realmente tenía en `valuation_period`.
+    Cada accident_period aparece una sola vez y utiliza
+    exactamente la edad observable que tenía en
+    `valuation_period`.
 
-    Requisitos:
+    Una observación es candidata cuando:
 
-        0 <= d < dev_M
+        0 <= snapshot_dev_month < dev_M
+
+    equivalentemente:
 
         target_period > valuation_period
 
-        target_period <= final_period
+    El hecho de que el target ocurra después de
+    FINAL_PERIOD NO elimina la observación.
+
+    `final_period` se conserva únicamente porque
+    `build_eligibility_grid()` lo utiliza para construir
+    la variable diagnóstica:
+
+        is_target_revealed_by_end
+
+    Importante
+    ----------
+    `target_amount` NO se incorpora en esta etapa.
+
+    La función representa únicamente la información
+    disponible en la fecha histórica de valuación.
     """
     valuation_period = as_month_period(
         valuation_period
@@ -434,16 +518,15 @@ def build_test_snapshots(
         scenario=scenario,
     )
 
-    targets = build_target_table(
-        df=data,
-        scenario=scenario,
-    )
-
     accident_periods = (
         data["accident_period"]
         .drop_duplicates()
         .sort_values()
     )
+
+    # --------------------------------------------------------
+    # Universo temporal de predicción
+    # --------------------------------------------------------
 
     eligibility = build_eligibility_grid(
         accident_periods=accident_periods,
@@ -457,7 +540,7 @@ def build_test_snapshots(
     eligibility = (
         eligibility.loc[
             eligibility[
-                "is_backtest_evaluable"
+                "is_prediction_candidate"
             ]
         ]
         .copy()
@@ -465,8 +548,12 @@ def build_test_snapshots(
 
     if eligibility.empty:
         return pd.DataFrame(
-            columns=SNAPSHOT_COLUMNS
+            columns=PREDICTION_SNAPSHOT_COLUMNS
         )
+
+    # --------------------------------------------------------
+    # Monto observable en la fecha de valuación
+    # --------------------------------------------------------
 
     current_rows = data[
         [
@@ -478,7 +565,7 @@ def build_test_snapshots(
         ]
     ].copy()
 
-    test = eligibility.merge(
+    prediction = eligibility.merge(
         current_rows,
         left_on=[
             "scenario",
@@ -494,99 +581,347 @@ def build_test_snapshots(
         validate="one_to_one",
     )
 
-    if test["loss_incurred"].isna().any():
+    if prediction[
+        "loss_incurred"
+    ].isna().any():
         raise ValueError(
-            "No fue posible encontrar el monto observable "
-            "para todas las observaciones de backtesting."
+            "No fue posible encontrar el monto "
+            "observable para todas las observaciones "
+            "de predicción."
         )
 
-    test = test.merge(
-        targets[
-            [
-                "accident_period",
-                "target_period",
-                "target_amount",
-            ]
+    # --------------------------------------------------------
+    # Construcción del snapshot
+    # --------------------------------------------------------
+
+    prediction = prediction.rename(
+        columns={
+            "calendar_period": (
+                "snapshot_period"
+            ),
+            "latest_dev_month": (
+                "snapshot_dev_month"
+            ),
+            "loss_incurred": (
+                "observed_amount"
+            ),
+        }
+    )
+
+    prediction[
+        "model_valuation_period"
+    ] = valuation_period
+
+    # Ninguna feature podrá utilizar información posterior
+    # a la edad realmente observable.
+    prediction[
+        "max_feature_dev_month"
+    ] = prediction[
+        "snapshot_dev_month"
+    ]
+
+    # --------------------------------------------------------
+    # Selección explícita de columnas
+    #
+    # Aquí se elimina físicamente cualquier posibilidad de
+    # que `target_amount` llegue al modelo.
+    # --------------------------------------------------------
+
+    prediction = prediction[
+        PREDICTION_SNAPSHOT_COLUMNS
+    ]
+
+    prediction = (
+        prediction
+        .sort_values("accident_period")
+        .reset_index(drop=True)
+    )
+
+    # --------------------------------------------------------
+    # Validación anti-leakage
+    # --------------------------------------------------------
+
+    validate_prediction_set(
+        prediction=prediction,
+        valuation_period=valuation_period,
+    )
+
+    return prediction
+
+
+# ============================================================
+# REVELACIÓN POSTERIOR DEL TARGET
+# ============================================================
+
+def reveal_targets(
+    predictions: pd.DataFrame,
+    df: pd.DataFrame,
+    scenario: str,
+) -> pd.DataFrame:
+    """
+    Incorpora el target real a predicciones ya generadas.
+
+    Esta función representa la fase de revelación del
+    backtesting y debe ejecutarse únicamente DESPUÉS de
+    que las predicciones hayan sido generadas y congeladas.
+
+    El target se obtiene directamente como:
+
+        target_amount =
+            loss_incurred en dev_month == dev_M
+
+    Nunca se utiliza una variable auxiliar como
+    `ultimate_loss`.
+
+    Parameters
+    ----------
+    predictions:
+        DataFrame que contiene predicciones ya congeladas.
+
+        Debe contener al menos:
+
+            scenario
+            accident_period
+            target_period
+
+        y una fecha de valuación mediante:
+
+            valuation_period
+
+        o:
+
+            model_valuation_period
+
+        No puede contener `target_amount`.
+
+    df:
+        Base longitudinal simulada completa.
+
+    scenario:
+        Escenario cuya trayectoria se utilizará para revelar
+        los targets.
+
+    Returns
+    -------
+    pd.DataFrame
+        Copia de las predicciones con `target_amount`
+        incorporado.
+    """
+    if predictions.empty:
+        return predictions.copy()
+
+    if "target_amount" in predictions.columns:
+        raise ValueError(
+            "`target_amount` ya está presente. "
+            "La revelación solo puede realizarse sobre "
+            "predicciones cuyo target todavía esté "
+            "bloqueado."
+        )
+
+    frozen = predictions.copy()
+
+    # --------------------------------------------------------
+    # Comprobaciones básicas
+    # --------------------------------------------------------
+
+    required_prediction_columns = {
+        "scenario",
+        "accident_period",
+        "target_period",
+    }
+
+    missing = required_prediction_columns.difference(
+        frozen.columns
+    )
+
+    if missing:
+        raise ValueError(
+            "Las predicciones no contienen todas las "
+            "columnas requeridas para revelar targets. "
+            f"Faltan: {sorted(missing)}"
+        )
+
+    if not frozen[
+        "scenario"
+    ].eq(scenario).all():
+        raise ValueError(
+            "Las predicciones contienen escenarios "
+            "distintos al escenario solicitado: "
+            f"{scenario!r}."
+        )
+
+    # --------------------------------------------------------
+    # Normalización de la fecha de valuación
+    # --------------------------------------------------------
+
+    if "valuation_period" not in frozen.columns:
+
+        if (
+            "model_valuation_period"
+            not in frozen.columns
+        ):
+            raise ValueError(
+                "Las predicciones deben contener "
+                "`valuation_period` o "
+                "`model_valuation_period`."
+            )
+
+        frozen["valuation_period"] = (
+            frozen["model_valuation_period"]
+        )
+
+    frozen["valuation_period"] = pd.PeriodIndex(
+        frozen["valuation_period"],
+        freq="M",
+    )
+
+    # --------------------------------------------------------
+    # Target real observado en dev_M
+    # --------------------------------------------------------
+
+    targets = build_target_table(
+        df=df,
+        scenario=scenario,
+    )[
+        [
+            "scenario",
+            "accident_period",
+            "target_period",
+            "target_amount",
+        ]
+    ].copy()
+
+    revealed = frozen.merge(
+        targets,
+        on=[
+            "scenario",
+            "accident_period",
         ],
-        on="accident_period",
         how="left",
         suffixes=(
-            "_eligibility",
+            "_prediction",
             "_target",
         ),
         validate="many_to_one",
     )
 
-    # La fecha de target calculada por eligibility.py
-    # debe coincidir con la observada directamente en la
-    # trayectoria simulada.
-    assert (
-        test["target_period_eligibility"]
-        == test["target_period_target"]
-    ).all()
+    # --------------------------------------------------------
+    # Comprobación de la fecha del target
+    # --------------------------------------------------------
 
-    test = test.rename(
-        columns={
-            "calendar_period": "snapshot_period",
-            "latest_dev_month": "snapshot_dev_month",
-            "loss_incurred": "observed_amount",
-            "target_period_target": "target_period",
-        }
+    if (
+        "target_period_prediction"
+        in revealed.columns
+    ):
+        if (
+            revealed[
+                "target_period_prediction"
+            ].isna().any()
+            or revealed[
+                "target_period_target"
+            ].isna().any()
+        ):
+            raise ValueError(
+                "No fue posible determinar "
+                "`target_period` para todas las "
+                "predicciones."
+            )
+
+        if not (
+            revealed[
+                "target_period_prediction"
+            ]
+            == revealed[
+                "target_period_target"
+            ]
+        ).all():
+            raise ValueError(
+                "La fecha del target calculada durante "
+                "predicción no coincide con la observada "
+                "en la trayectoria simulada."
+            )
+
+        revealed["target_period"] = (
+            revealed[
+                "target_period_target"
+            ]
+        )
+
+        revealed = revealed.drop(
+            columns=[
+                "target_period_prediction",
+                "target_period_target",
+            ]
+        )
+
+    # --------------------------------------------------------
+    # Comprobación de targets revelados
+    # --------------------------------------------------------
+
+    if revealed[
+        "target_amount"
+    ].isna().any():
+        missing_keys = (
+            revealed.loc[
+                revealed[
+                    "target_amount"
+                ].isna(),
+                [
+                    "scenario",
+                    "accident_period",
+                    "valuation_period",
+                ],
+            ]
+            .drop_duplicates()
+        )
+
+        raise ValueError(
+            "No fue posible revelar el target para "
+            "todas las predicciones.\n"
+            f"Claves sin target:\n{missing_keys}"
+        )
+
+    # --------------------------------------------------------
+    # Validación posterior a la revelación
+    # --------------------------------------------------------
+
+    validate_revealed_test_set(
+        revealed=revealed
     )
 
-    test["model_valuation_period"] = (
-        valuation_period
-    )
-
-    test["max_feature_dev_month"] = (
-        test["snapshot_dev_month"]
-    )
-
-    test = test[
-        SNAPSHOT_COLUMNS
-    ]
-
-    test = (
-        test
-        .sort_values("accident_period")
-        .reset_index(drop=True)
-    )
-
-    validate_test_set(
-        test=test,
-        valuation_period=valuation_period,
-        final_period=final_period,
-    )
-
-    # En test el snapshot representa exactamente
-    # la valuación histórica.
-    assert (
-        test["snapshot_period"]
-        == valuation_period
-    ).all()
-
-    # Una cohorte produce una sola observación
-    # en cada fecha histórica.
-    assert not test[
-        "accident_period"
-    ].duplicated().any()
-
-    return test
+    return revealed
 
 
 # ============================================================
-# WRAPPER TRAIN + TEST
+# WRAPPER TRAIN + PREDICTION
 # ============================================================
 
-def build_train_test_snapshots(
+def build_train_prediction_snapshots(
     df: pd.DataFrame,
     scenario: str,
     valuation_period,
     final_period=FINAL_PERIOD,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Construye simultáneamente train y test para una
-    valuación histórica.
+    Construye simultáneamente los datasets de entrenamiento
+    y predicción correspondientes a una valuación histórica.
+
+    El dataset de entrenamiento contiene únicamente targets
+    que ya eran conocidos en la fecha de valuación.
+
+    El dataset de predicción mantiene `target_amount`
+    completamente bloqueado.
+
+    Returns
+    -------
+    train:
+        Snapshots históricos provenientes de cohortes
+        maduras.
+
+    prediction:
+        Una observación por cohorte inmadura utilizando
+        exclusivamente la información observable en
+        `valuation_period`.
     """
     train = build_training_snapshots(
         df=df,
@@ -594,11 +929,11 @@ def build_train_test_snapshots(
         valuation_period=valuation_period,
     )
 
-    test = build_test_snapshots(
+    prediction = build_prediction_snapshots(
         df=df,
         scenario=scenario,
         valuation_period=valuation_period,
         final_period=final_period,
     )
 
-    return train, test
+    return train, prediction

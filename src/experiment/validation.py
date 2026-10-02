@@ -94,8 +94,19 @@ def validate_eligibility_frame(
     df: pd.DataFrame,
 ) -> None:
     """
-    Validaciones generales de la cuadrícula de elegibilidad.
+    Valida la cuadrícula temporal de elegibilidad.
+
+    Una observación candidata a predicción debe:
+
+    - corresponder a una cohorte ya observable;
+    - tener edad de desarrollo no negativa;
+    - permanecer inmadura en la fecha de valuación;
+    - cumplir 0 <= latest_dev_month < dev_M.
+
+    La disponibilidad del target antes de FINAL_PERIOD
+    no determina la elegibilidad para predicción.
     """
+
     required = {
         "scenario",
         "accident_period",
@@ -103,8 +114,10 @@ def validate_eligibility_frame(
         "latest_dev_month",
         "dev_M",
         "target_period",
+        "is_observed_at_valuation",
         "is_mature_at_valuation",
         "is_target_revealed_by_end",
+        "is_prediction_candidate",
         "is_backtest_evaluable",
     }
 
@@ -114,27 +127,40 @@ def validate_eligibility_frame(
         f"Columnas faltantes: {sorted(missing)}"
     )
 
-    evaluable = df.loc[
-        df["is_backtest_evaluable"]
+    prediction = df.loc[
+        df["is_prediction_candidate"]
     ]
 
+    # La cohorte debe existir en la valuación.
+    assert prediction[
+        "is_observed_at_valuation"
+    ].all()
+
+    # Debe encontrarse en una edad válida.
     assert (
-        evaluable["latest_dev_month"] >= 0
+        prediction["latest_dev_month"] >= 0
     ).all()
 
     assert (
-        evaluable["latest_dev_month"]
-        < evaluable["dev_M"]
+        prediction["latest_dev_month"]
+        < prediction["dev_M"]
     ).all()
 
+    # El target todavía no debía conocerse.
     assert (
-        evaluable["target_period"]
-        <= FINAL_PERIOD
+        prediction["target_period"]
+        > prediction["valuation_period"]
     ).all()
 
+    assert not prediction[
+        "is_mature_at_valuation"
+    ].any()
+
+    # Mientras mantengamos el alias antiguo,
+    # ambas definiciones deben ser equivalentes.
     assert (
-        evaluable["target_period"]
-        > evaluable["valuation_period"]
+        df["is_prediction_candidate"]
+        == df["is_backtest_evaluable"]
     ).all()
 
 
@@ -191,68 +217,95 @@ def validate_training_set(
         ).all()
 
 
-def validate_test_set(
-    test: pd.DataFrame,
+def validate_prediction_set(
+    prediction: pd.DataFrame,
     valuation_period,
-    final_period=FINAL_PERIOD,
 ) -> None:
     """
-    Verifica que las observaciones de test sean inmaduras
-    en la valuación, pero evaluables al cierre.
+    Valida el dataset utilizado para generar predicciones.
+
+    El dataset debe representar cohortes inmaduras en la
+    fecha histórica de valuación y no puede contener el
+    target futuro.
     """
+
     valuation_period = pd.Period(
         valuation_period,
         freq="M",
     )
 
-    final_period = pd.Period(
-        final_period,
-        freq="M",
-    )
-
     required = {
-        "target_period",
-        "target_amount",
+        "scenario",
+        "accident_period",
+        "snapshot_period",
         "snapshot_dev_month",
         "dev_M",
+        "observed_amount",
+        "target_period",
     }
 
     missing = required.difference(
-        test.columns
+        prediction.columns
     )
 
     assert not missing, (
-        f"Columnas faltantes en test: "
+        f"Columnas faltantes en prediction: "
         f"{sorted(missing)}"
     )
 
+    # --------------------------------------------------------
+    # Target bloqueado
+    # --------------------------------------------------------
+
+    forbidden_target_columns = {
+        "target_amount",
+    }
+
+    leaked = forbidden_target_columns.intersection(
+        prediction.columns
+    )
+
+    assert not leaked, (
+        "El dataset de predicción contiene información "
+        f"futura: {sorted(leaked)}"
+    )
+
+    # --------------------------------------------------------
+    # Temporalidad
+    # --------------------------------------------------------
+
     assert (
-        test["target_period"]
+        prediction["target_period"]
         > valuation_period
     ).all()
 
     assert (
-        test["target_period"]
-        <= final_period
+        prediction["snapshot_dev_month"] >= 0
     ).all()
 
     assert (
-        test["snapshot_dev_month"]
-        >= 0
+        prediction["snapshot_dev_month"]
+        < prediction["dev_M"]
     ).all()
 
+    # El snapshot de test representa exactamente
+    # la fecha histórica de valuación.
     assert (
-        test["snapshot_dev_month"]
-        < test["dev_M"]
+        prediction["snapshot_period"]
+        == valuation_period
     ).all()
 
-    assert test["target_amount"].gt(0).all()
+    # Una cohorte produce una única observación
+    # en una valuación histórica.
+    assert not prediction[
+        "accident_period"
+    ].duplicated().any()
 
-    if "max_feature_dev_month" in test.columns:
+    if "max_feature_dev_month" in prediction.columns:
 
         assert (
-            test["max_feature_dev_month"]
-            <= test["snapshot_dev_month"]
+            prediction["max_feature_dev_month"]
+            <= prediction["snapshot_dev_month"]
         ).all()
 
 
@@ -336,3 +389,41 @@ def validate_no_prediction_duplicates(
     assert not predictions.duplicated(
         key
     ).any()
+
+def validate_revealed_test_set(
+    revealed: pd.DataFrame,
+) -> None:
+    """
+    Valida la base posterior a la revelación del target.
+
+    Esta función debe ejecutarse únicamente después de que
+    las predicciones hayan sido generadas y congeladas.
+    """
+
+    required = {
+        "scenario",
+        "accident_period",
+        "valuation_period",
+        "target_period",
+        "target_amount",
+    }
+
+    missing = required.difference(
+        revealed.columns
+    )
+
+    assert not missing, (
+        f"Columnas faltantes después de revelar target: "
+        f"{sorted(missing)}"
+    )
+
+    assert revealed["target_amount"].notna().all()
+
+    assert revealed["target_amount"].gt(0).all()
+
+    # La predicción se realizó antes de que el target
+    # estuviera disponible.
+    assert (
+        revealed["target_period"]
+        > revealed["valuation_period"]
+    ).all()
