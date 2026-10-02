@@ -16,8 +16,8 @@ Comparar métodos tradicionales y estadísticos para proyectar el desarrollo men
 | 02 | Validación y exploración | ✅ Completada |
 | 03 | Diseño del experimento | ✅ Completada |
 | 04 | Backtesting | ✅ Completada |
-| 05 | Evaluación y comparación | 🟡 En progreso |
-| 06 | Reserva y reporte final | ⚪ Pendiente |
+| 05 | Evaluación y selección | ✅ Completada |
+| 06 | Reserva y cierre | 🟡 En progreso |
 
 ## Flujo
 
