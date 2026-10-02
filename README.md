@@ -136,15 +136,15 @@ Una vez seleccionado el método mediante backtesting, `VW_all_none` se aplica so
 
 La reserva se define como:
 
-\[
+$$
 \widehat{R}_i =
 \widehat{U}_i - LI_i^{obs}
-\]
+$$
 
 donde:
 
-- \(\widehat{U}_i\) es el Loss Incurred ultimate estimado;
-- \(LI_i^{obs}\) es el Loss Incurred observado a la fecha de valuación.
+- $\widehat{U}_i$ es el Loss Incurred ultimate estimado;
+- $LI_i^{obs}$ es el Loss Incurred observado a la fecha de valuación.
 
 Los resultados agregados fueron:
 
